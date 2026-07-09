@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { DRIZZLE, DrizzleDb } from '../database/database.module';
 import * as schema from '../database/schema';
 import { eq, and, or } from 'drizzle-orm';
@@ -10,6 +10,9 @@ export class RelationshipsService {
   constructor(@Inject(DRIZZLE) private db: DrizzleDb) {}
 
   async createRelationship(dto: CreateRelationshipDto) {
+    if (dto.contactId1 === dto.contactId2) {
+      throw new BadRequestException('Cannot create a relationship between a contact and itself');
+    }
     const existing = await this.db.select().from(schema.relationships)
       .where(
         or(
@@ -91,11 +94,27 @@ export class RelationshipsService {
     const group = await this.db.select().from(schema.relationshipGroups).where(eq(schema.relationshipGroups.id, groupId));
     if (!group.length) throw new NotFoundException('Group not found');
 
-    await this.db.insert(schema.contactGroups).values(
-      contactIds.map(contactId => ({ id: uuid(), contactId, groupId }))
-    );
+    const existing = await this.db.select().from(schema.contactGroups).where(eq(schema.contactGroups.groupId, groupId));
+    const existingIds = new Set(existing.map(cg => cg.contactId));
+    const toAdd = contactIds.filter(id => !existingIds.has(id));
+
+    if (toAdd.length) {
+      await this.db.insert(schema.contactGroups).values(
+        toAdd.map(contactId => ({ id: uuid(), contactId, groupId }))
+      );
+    }
 
     return this.getGroups();
+  }
+
+  async removeContactFromGroup(groupId: string, contactId: string) {
+    await this.db.delete(schema.contactGroups).where(
+      and(
+        eq(schema.contactGroups.groupId, groupId),
+        eq(schema.contactGroups.contactId, contactId),
+      )
+    );
+    return { removed: true };
   }
 
   async deleteGroup(id: string) {

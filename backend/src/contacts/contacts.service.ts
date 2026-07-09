@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { DRIZZLE, DrizzleDb } from '../database/database.module';
 import * as schema from '../database/schema';
-import { eq, or, like } from 'drizzle-orm';
+import { eq, or, ilike } from 'drizzle-orm';
 import { CreateContactDto, UpdateContactDto } from '../common/create-contact.dto';
 import { v4 as uuid } from 'uuid';
 
@@ -46,9 +46,9 @@ export class ContactsService {
       contactsList = await this.db.select().from(schema.contacts)
         .where(
           or(
-            like(schema.contacts.fullName, pattern),
-            like(schema.contacts.company, pattern),
-            like(schema.contacts.jobTitle, pattern),
+            ilike(schema.contacts.fullName, pattern),
+            ilike(schema.contacts.company, pattern),
+            ilike(schema.contacts.jobTitle, pattern),
           )
         )
         .limit(limit).offset(offset);
@@ -114,26 +114,64 @@ export class ContactsService {
     return { deleted: true };
   }
 
-  async merge(sourceId: string, targetId: string) {
-    const source = await this.findOne(sourceId);
-    const target = await this.findOne(targetId);
+  async mergeInto(targetId: string, incoming: CreateContactDto) {
+    const target: any = await this.findOne(targetId);
+
+    const existingEmails: string[] = (target.emails || []).map((e: any) => e.email.toLowerCase());
+    const newEmails = (incoming.emails || []).filter(e => !existingEmails.includes(e.email.toLowerCase()));
+
+    const existingPhones: string[] = (target.phones || []).map((p: any) => p.phone.replace(/[^\d]/g, ''));
+    const newPhones = (incoming.phones || []).filter(p => !existingPhones.includes(p.phone.replace(/[^\d]/g, '')));
 
     const merged: UpdateContactDto = {
-      fullName: (source as any).fullName || (target as any).fullName,
-      jobTitle: (source as any).jobTitle || (target as any).jobTitle,
-      company: (source as any).company || (target as any).company,
-      website: (source as any).website || (target as any).website,
-      address: (source as any).address || (target as any).address,
-      businessRelationship: (source as any).businessRelationship || (target as any).businessRelationship,
-      notes: [(source as any).notes, (target as any).notes].filter(Boolean).join('\n---\n') || undefined,
-      emails: [...((source as any).emails || []), ...((target as any).emails || [])],
-      phones: [...((source as any).phones || []), ...((target as any).phones || [])],
+      fullName: target.fullName || incoming.fullName,
+      jobTitle: target.jobTitle || incoming.jobTitle,
+      company: target.company || incoming.company,
+      website: target.website || incoming.website,
+      address: target.address || incoming.address,
+      businessRelationship: target.businessRelationship || incoming.businessRelationship,
+      notes: [target.notes, incoming.notes].filter(Boolean).join('\n---\n') || undefined,
+      emails: [...(target.emails || []).map((e: any) => ({ email: e.email, type: e.type })), ...newEmails],
+      phones: [...(target.phones || []).map((p: any) => ({ phone: p.phone, type: p.type })), ...newPhones],
     };
 
-    const updated = await this.update(targetId, merged);
+    return this.update(targetId, merged);
+  }
+
+  async merge(sourceId: string, targetId: string) {
+    if (sourceId === targetId) throw new BadRequestException('Cannot merge a contact into itself');
+
+    const source: any = await this.findOne(sourceId);
+    const target: any = await this.findOne(targetId);
+
+    const dedupEmails = new Map<string, { email: string; type: string }>();
+    for (const e of [...(target.emails || []), ...(source.emails || [])]) {
+      const key = e.email.toLowerCase();
+      if (!dedupEmails.has(key)) dedupEmails.set(key, { email: e.email, type: e.type || 'other' });
+    }
+    const dedupPhones = new Map<string, { phone: string; type: string }>();
+    for (const p of [...(target.phones || []), ...(source.phones || [])]) {
+      const key = p.phone.replace(/[^\d]/g, '');
+      if (key && !dedupPhones.has(key)) dedupPhones.set(key, { phone: p.phone, type: p.type || 'other' });
+    }
+
+    const merged: UpdateContactDto = {
+      fullName: target.fullName || source.fullName,
+      jobTitle: target.jobTitle || source.jobTitle,
+      company: target.company || source.company,
+      website: target.website || source.website,
+      address: target.address || source.address,
+      businessRelationship: target.businessRelationship || source.businessRelationship,
+      notes: [target.notes, source.notes].filter(Boolean).join('\n---\n') || undefined,
+      emails: Array.from(dedupEmails.values()),
+      phones: Array.from(dedupPhones.values()),
+    };
 
     await this.db.delete(schema.contactEmails).where(eq(schema.contactEmails.contactId, sourceId));
     await this.db.delete(schema.contactPhones).where(eq(schema.contactPhones.contactId, sourceId));
+
+    const updated = await this.update(targetId, merged);
+
     await this.db.delete(schema.contacts).where(eq(schema.contacts.id, sourceId));
 
     return updated;

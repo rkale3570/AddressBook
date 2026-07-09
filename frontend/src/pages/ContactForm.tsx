@@ -78,10 +78,10 @@ export default function ContactForm() {
   const checkDuplicates = async () => {
     const checkData: any = {};
     if (form.fullName) checkData.fullName = form.fullName;
-    const firstEmail = emails.find(e => e.email);
-    if (firstEmail) checkData.email = firstEmail.email;
-    const firstPhone = phones.find(p => p.phone);
-    if (firstPhone) checkData.phone = firstPhone.phone;
+    const emailList = emails.map(e => e.email).filter(Boolean);
+    if (emailList.length) checkData.emails = emailList;
+    const phoneList = phones.map(p => p.phone).filter(Boolean);
+    if (phoneList.length) checkData.phones = phoneList;
 
     if (!isEdit && Object.keys(checkData).length > 0) {
       try {
@@ -94,6 +94,21 @@ export default function ContactForm() {
       } catch {}
     }
     return false;
+  };
+
+  const mergeIntoExisting = async (existingId: string) => {
+    const payload = {
+      ...form,
+      emails: emails.filter(e => e.email),
+      phones: phones.filter(p => p.phone),
+    };
+    try {
+      await api.contacts.mergeInto(existingId, payload);
+      setShowDupDialog(false);
+      navigate(`/contacts/${existingId}/edit`);
+    } catch (err: any) {
+      alert(err.message);
+    }
   };
 
   const save = async (force = false) => {
@@ -229,10 +244,7 @@ export default function ContactForm() {
         <DuplicateDialog
           duplicates={duplicates}
           onUseExisting={(existingId) => navigate(`/contacts/${existingId}/edit`)}
-          onMerge={(sourceId) => {
-            if (id) navigate(`/contacts/${sourceId}/edit`);
-            else setShowDupDialog(false);
-          }}
+          onMerge={(existingId) => mergeIntoExisting(existingId)}
           onCreateNew={() => { setShowDupDialog(false); save(true); }}
           onClose={() => setShowDupDialog(false)}
         />

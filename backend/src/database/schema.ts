@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core';
 
 export const contacts = pgTable('contacts', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -19,7 +19,8 @@ export const contactEmails = pgTable('contact_emails', {
   email: text('email').notNull(),
   type: text('type').default('other'),
 }, (table) => ({
-  emailIdx: uniqueIndex('email_idx').on(table.email),
+  contactEmailIdx: uniqueIndex('contact_email_idx').on(table.contactId, table.email),
+  emailLookupIdx: index('email_lookup_idx').on(table.email),
 }));
 
 export const contactPhones = pgTable('contact_phones', {
@@ -28,7 +29,8 @@ export const contactPhones = pgTable('contact_phones', {
   phone: text('phone').notNull(),
   type: text('type').default('other'),
 }, (table) => ({
-  phoneIdx: uniqueIndex('phone_idx').on(table.phone),
+  contactPhoneIdx: uniqueIndex('contact_phone_idx').on(table.contactId, table.phone),
+  phoneLookupIdx: index('phone_lookup_idx').on(table.phone),
 }));
 
 export const relationshipGroups = pgTable('relationship_groups', {

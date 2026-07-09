@@ -11,6 +11,16 @@ export class ContactsController {
     return this.contactsService.create(dto);
   }
 
+  @Post('merge')
+  merge(@Body() body: { sourceId: string; targetId: string }) {
+    return this.contactsService.merge(body.sourceId, body.targetId);
+  }
+
+  @Post(':id/merge-into')
+  mergeInto(@Param('id') id: string, @Body() dto: CreateContactDto) {
+    return this.contactsService.mergeInto(id, dto);
+  }
+
   @Get()
   findAll(@Query('page') page?: string, @Query('limit') limit?: string, @Query('search') search?: string) {
     return this.contactsService.findAll(

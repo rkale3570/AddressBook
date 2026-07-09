@@ -25,6 +25,8 @@ export const api = {
     delete: (id: string) => request<any>(`/contacts/${id}`, { method: 'DELETE' }),
     merge: (sourceId: string, targetId: string) =>
       request<any>('/contacts/merge', { method: 'POST', body: JSON.stringify({ sourceId, targetId }) }),
+    mergeInto: (targetId: string, data: any) =>
+      request<any>(`/contacts/${targetId}/merge-into`, { method: 'POST', body: JSON.stringify(data) }),
   },
 
   scan: {
@@ -48,7 +50,6 @@ export const api = {
 
   duplicates: {
     check: (data: any) => request<any>('/duplicates/check', { method: 'POST', body: JSON.stringify(data) }),
-    resolve: (data: any) => request<any>('/duplicates/resolve', { method: 'POST', body: JSON.stringify(data) }),
   },
 
   relationships: {
@@ -60,6 +61,8 @@ export const api = {
       create: (data: any) => request<any>('/relationships/groups', { method: 'POST', body: JSON.stringify(data) }),
       addContacts: (groupId: string, contactIds: string[]) =>
         request<any>(`/relationships/groups/${groupId}/contacts`, { method: 'POST', body: JSON.stringify({ contactIds }) }),
+      removeContact: (groupId: string, contactId: string) =>
+        request<any>(`/relationships/groups/${groupId}/contacts/${contactId}`, { method: 'DELETE' }),
       delete: (id: string) => request<any>(`/relationships/groups/${id}`, { method: 'DELETE' }),
     },
   },

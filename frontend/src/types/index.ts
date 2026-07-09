@@ -56,6 +56,7 @@ export const BUSINESS_RELATIONSHIPS = [
   'Attorney',
   'Mortgage Broker',
   'Inspector',
+  'Contractor',
   'Friend',
   'Other',
 ] as const;
@@ -63,12 +64,21 @@ export const BUSINESS_RELATIONSHIPS = [
 export const PHONE_TYPES = ['mobile', 'office', 'home', 'other'] as const;
 export const EMAIL_TYPES = ['personal', 'work', 'other'] as const;
 export const RELATIONSHIP_TYPES = [
+  'Husband',
+  'Wife',
   'Spouse',
+  'Father',
+  'Mother',
   'Parent',
+  'Son',
+  'Daughter',
   'Child',
+  'Brother',
+  'Sister',
   'Sibling',
   'Business Partner',
   'Team Member',
+  'Colleague',
   'Friend',
   'Other',
 ] as const;

@@ -3,7 +3,7 @@ import { DuplicateResult } from '../types';
 interface Props {
   duplicates: DuplicateResult[];
   onUseExisting: (id: string) => void;
-  onMerge: (sourceId: string, targetId: string) => void;
+  onMerge: (existingId: string) => void;
   onCreateNew: () => void;
   onClose: () => void;
 }
@@ -33,7 +33,7 @@ export default function DuplicateDialog({ duplicates, onUseExisting, onMerge, on
               <button className="btn btn-sm btn-primary" onClick={() => onUseExisting(d.contact.id)}>
                 Use Existing
               </button>
-              <button className="btn btn-sm btn-success" onClick={() => onMerge(d.contact.id, 'new')}>
+              <button className="btn btn-sm btn-success" onClick={() => onMerge(d.contact.id)}>
                 Merge
               </button>
             </div>

@@ -45,7 +45,7 @@ export class ScanService {
     const addressRegex = /\d+\s+[A-Za-z]/;
     const companyKeywords = ['inc', 'llc', 'corp', 'ltd', 'co ', 'company', 'realty', 'properties', 'group', 'solutions', 'technologies', 'consulting', 'services', 'enterprises', 'associates', 'partners', 'best'];
     const titleKeywords = ['manager', 'director', 'coordinates', 'president', 'ceo', 'cto', 'cfo', 'coo', 'engineer', 'developer', 'sales', 'agent', 'broker', 'specialist', 'coordinator', 'consultant', 'analyst', 'assistant', 'attorney', 'accountant', 'inspector', 'officer', 'lead', 'head', 'supervisor', 'admin', 'representative', 'executive'];
-    const relationshipKeywords = ['client', 'vendor', 'accountant', 'attorney', 'mortgage broker', 'inspector', 'friend'];
+    const relationshipKeywords = ['client', 'vendor', 'accountant', 'attorney', 'mortgage broker', 'inspector', 'contractor', 'friend'];
 
     let potentialEmails = lines.flatMap(line => {
       const matches = line.match(emailRegex);

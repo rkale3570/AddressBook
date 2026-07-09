@@ -25,12 +25,10 @@ export default function ScanPage() {
   };
 
   const processScan = async (file: File) => {
-    if (!imageData) return;
     setScanning(true);
     setError('');
 
     try {
-      const blob = await fetch(imageData).then(r => r.blob());
       const result = await api.scan.image(file);
       if (result?.error) {
         setError(`Server error: ${result.detail || result.error}`);
@@ -72,12 +70,12 @@ export default function ScanPage() {
 
   const goToEditForm = () => {
     if (!scanResult) return;
-    const formState = {
+    const scanResultPayload = {
       ...scanResult,
       emails: scanResult.emails || [],
       phones: scanResult.phones || [],
     };
-    navigate('/contacts/new', { state: formState });
+    navigate('/contacts/new', { state: { scanResult: scanResultPayload } });
   };
 
   const handlePaste = async (e: ClipboardEvent) => {

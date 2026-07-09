@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, IsArray } from 'class-validator';
 
 export class CheckDuplicateDto {
   @IsOptional()
@@ -12,6 +12,16 @@ export class CheckDuplicateDto {
   @IsOptional()
   @IsString()
   phone?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  emails?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  phones?: string[];
 }
 
 export class MergeContactsDto {
@@ -22,11 +32,3 @@ export class MergeContactsDto {
   targetId!: string;
 }
 
-export class ResolveDuplicateDto {
-  @IsString()
-  action!: 'use_existing' | 'merge' | 'create_new';
-
-  @IsOptional()
-  @IsString()
-  existingContactId?: string;
-}

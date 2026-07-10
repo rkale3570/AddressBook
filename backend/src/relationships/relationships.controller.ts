@@ -36,11 +36,6 @@ export class RelationshipsController {
     return this.relationshipsService.addContactsToGroup(groupId, contactIds);
   }
 
-  @Delete('groups/:groupId/contacts/:contactId')
-  removeContactFromGroup(@Param('groupId') groupId: string, @Param('contactId') contactId: string) {
-    return this.relationshipsService.removeContactFromGroup(groupId, contactId);
-  }
-
   @Delete('groups/:id')
   deleteGroup(@Param('id') id: string) {
     return this.relationshipsService.deleteGroup(id);

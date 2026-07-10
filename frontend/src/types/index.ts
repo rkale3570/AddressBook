@@ -54,9 +54,12 @@ export const BUSINESS_RELATIONSHIPS = [
   'Vendor',
   'Accountant',
   'Attorney',
+  'Contractor',
+  'Employee',
+  'Supplier',
+  'Customer',
   'Mortgage Broker',
   'Inspector',
-  'Contractor',
   'Friend',
   'Other',
 ] as const;
@@ -78,7 +81,6 @@ export const RELATIONSHIP_TYPES = [
   'Sibling',
   'Business Partner',
   'Team Member',
-  'Colleague',
   'Friend',
   'Other',
 ] as const;

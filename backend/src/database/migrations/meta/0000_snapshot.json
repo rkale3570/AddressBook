@@ -1,5 +1,5 @@
 {
-  "id": "1ed74ab6-e468-4eff-9f93-a63317279f3e",
+  "id": "fd34e94b-74a4-4a98-8675-e666c3535e53",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "5",
   "dialect": "pg",
@@ -39,6 +39,7 @@
         "email_idx": {
           "name": "email_idx",
           "columns": [
+            "contact_id",
             "email"
           ],
           "isUnique": true
@@ -153,6 +154,7 @@
         "phone_idx": {
           "name": "phone_idx",
           "columns": [
+            "contact_id",
             "phone"
           ],
           "isUnique": true

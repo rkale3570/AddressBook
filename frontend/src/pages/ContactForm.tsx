@@ -78,10 +78,12 @@ export default function ContactForm() {
   const checkDuplicates = async () => {
     const checkData: any = {};
     if (form.fullName) checkData.fullName = form.fullName;
-    const emailList = emails.map(e => e.email).filter(Boolean);
-    if (emailList.length) checkData.emails = emailList;
-    const phoneList = phones.map(p => p.phone).filter(Boolean);
-    if (phoneList.length) checkData.phones = phoneList;
+
+    const filledEmails = emails.map(e => e.email).filter(Boolean);
+    if (filledEmails.length) checkData.emails = filledEmails;
+
+    const filledPhones = phones.map(p => p.phone).filter(Boolean);
+    if (filledPhones.length) checkData.phones = filledPhones;
 
     if (!isEdit && Object.keys(checkData).length > 0) {
       try {
@@ -96,19 +98,53 @@ export default function ContactForm() {
     return false;
   };
 
+  const dedupeBy = <T extends Record<string, any>>(items: T[], key: string, normalize: (v: string) => string = v => v.toLowerCase()) => {
+    const seen = new Set<string>();
+    return items.filter(item => {
+      const k = normalize(String(item[key] || ''));
+      if (!k || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  };
+
+  // "Merge" from the duplicate-detection dialog: combine what the user just
+  // typed into this (not-yet-created) form with the chosen existing contact,
+  // and save it as an update to that existing contact. No new row is created.
   const mergeIntoExisting = async (existingId: string) => {
-    const payload = {
-      ...form,
-      emails: emails.filter(e => e.email),
-      phones: phones.filter(p => p.phone),
-    };
+    setSaving(true);
     try {
-      await api.contacts.mergeInto(existingId, payload);
+      const existing = await api.contacts.get(existingId);
+
+      const mergedEmails = dedupeBy(
+        [...(existing.emails || []), ...emails.filter(e => e.email)],
+        'email',
+      );
+      const mergedPhones = dedupeBy(
+        [...(existing.phones || []), ...phones.filter(p => p.phone)],
+        'phone',
+        v => v.replace(/[^\d]/g, ''),
+      );
+
+      const payload = {
+        fullName: existing.fullName || form.fullName,
+        jobTitle: existing.jobTitle || form.jobTitle || undefined,
+        company: existing.company || form.company || undefined,
+        website: existing.website || form.website || undefined,
+        address: existing.address || form.address || undefined,
+        businessRelationship: existing.businessRelationship || form.businessRelationship || undefined,
+        notes: [existing.notes, form.notes].filter(Boolean).join('\n---\n') || undefined,
+        emails: mergedEmails.map((e: any) => ({ email: e.email, type: e.type || 'other' })),
+        phones: mergedPhones.map((p: any) => ({ phone: p.phone, type: p.type || 'other' })),
+      };
+
+      await api.contacts.update(existingId, payload);
       setShowDupDialog(false);
       navigate(`/contacts/${existingId}/edit`);
     } catch (err: any) {
-      alert(err.message);
+      alert(err.message || 'Failed to merge into the existing contact.');
     }
+    setSaving(false);
   };
 
   const save = async (force = false) => {
@@ -244,7 +280,7 @@ export default function ContactForm() {
         <DuplicateDialog
           duplicates={duplicates}
           onUseExisting={(existingId) => navigate(`/contacts/${existingId}/edit`)}
-          onMerge={(existingId) => mergeIntoExisting(existingId)}
+          onMerge={mergeIntoExisting}
           onCreateNew={() => { setShowDupDialog(false); save(true); }}
           onClose={() => setShowDupDialog(false)}
         />

@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const contacts = pgTable('contacts', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -19,8 +19,12 @@ export const contactEmails = pgTable('contact_emails', {
   email: text('email').notNull(),
   type: text('type').default('other'),
 }, (table) => ({
-  contactEmailIdx: uniqueIndex('contact_email_idx').on(table.contactId, table.email),
-  emailLookupIdx: index('email_lookup_idx').on(table.email),
+  // Scoped per-contact (not global): a single contact can't list the same
+  // email twice, but two different contacts CAN share an email/phone (e.g.
+  // a shared family or office line). A global unique index here would make
+  // "Create New Anyway" in the duplicate-detection dialog crash whenever a
+  // match was found on email/phone -- exactly the case it needs to handle.
+  emailIdx: uniqueIndex('email_idx').on(table.contactId, table.email),
 }));
 
 export const contactPhones = pgTable('contact_phones', {
@@ -29,8 +33,7 @@ export const contactPhones = pgTable('contact_phones', {
   phone: text('phone').notNull(),
   type: text('type').default('other'),
 }, (table) => ({
-  contactPhoneIdx: uniqueIndex('contact_phone_idx').on(table.contactId, table.phone),
-  phoneLookupIdx: index('phone_lookup_idx').on(table.phone),
+  phoneIdx: uniqueIndex('phone_idx').on(table.contactId, table.phone),
 }));
 
 export const relationshipGroups = pgTable('relationship_groups', {

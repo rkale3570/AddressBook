@@ -9,6 +9,8 @@ export default function GroupsPage() {
   const [groupName, setGroupName] = useState('');
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -19,7 +21,9 @@ export default function GroupsPage() {
       ]);
       setGroups(g || []);
       setContacts(c.data || []);
-    } catch {}
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load groups. Please refresh and try again.');
+    }
     setLoading(false);
   };
 
@@ -27,17 +31,30 @@ export default function GroupsPage() {
 
   const createGroup = async () => {
     if (!groupName.trim()) return;
-    await api.relationships.groups.create({ name: groupName, contactIds: selectedContacts });
-    setGroupName('');
-    setSelectedContacts([]);
-    setShowCreate(false);
-    loadData();
+    setError('');
+    setSaving(true);
+    try {
+      await api.relationships.groups.create({ name: groupName, contactIds: selectedContacts });
+      setGroupName('');
+      setSelectedContacts([]);
+      setShowCreate(false);
+      await loadData();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to create group. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const deleteGroup = async (id: string) => {
     if (!confirm('Delete this group?')) return;
-    await api.relationships.groups.delete(id);
-    loadData();
+    setError('');
+    try {
+      await api.relationships.groups.delete(id);
+      await loadData();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to delete group. Please try again.');
+    }
   };
 
   const toggleContact = (id: string) => {
@@ -56,6 +73,12 @@ export default function GroupsPage() {
           {showCreate ? 'Cancel' : '+ New Group'}
         </button>
       </div>
+
+      {error && (
+        <p className="text-sm mt-1 mb-1" style={{ color: '#92400e', background: '#fef3c7', padding: '0.5rem', borderRadius: 'var(--radius)' }}>
+          {error}
+        </p>
+      )}
 
       {showCreate && (
         <div className="card mb-2">
@@ -81,8 +104,8 @@ export default function GroupsPage() {
               ))}
             </div>
           </div>
-          <button className="btn btn-primary" onClick={createGroup} disabled={!groupName.trim()}>
-            Create Group
+          <button className="btn btn-primary" onClick={createGroup} disabled={!groupName.trim() || saving}>
+            {saving ? 'Creating...' : 'Create Group'}
           </button>
         </div>
       )}

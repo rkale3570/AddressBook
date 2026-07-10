@@ -10,18 +10,130 @@ export default function ScanPage() {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const pasteButtonRef = useRef<HTMLButtonElement>(null);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Live camera capture state
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
+  const stopCamera = () => {
+    streamRef.current?.getTracks().forEach(track => track.stop());
+    streamRef.current = null;
+    setCameraOpen(false);
+  };
+
+  const startCamera = async (mode: 'environment' | 'user' = facingMode) => {
+    setError('');
+    setCameraError('');
+
+    // If the browser doesn't support getUserMedia (or we're not in a secure
+    // context), fall back to the native mobile camera picker instead.
+    if (!navigator.mediaDevices?.getUserMedia) {
+      cameraInputRef.current?.click();
+      return;
+    }
+
+    try {
+      streamRef.current?.getTracks().forEach(track => track.stop());
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: mode },
+        audio: false,
+      });
+      streamRef.current = stream;
+      setFacingMode(mode);
+      setCameraOpen(true);
+      requestAnimationFrame(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      });
+    } catch (err: any) {
+      setCameraError('Could not access camera. You can still upload a photo instead.');
+    }
+  };
+
+  const switchCamera = () => {
+    const next = facingMode === 'environment' ? 'user' : 'environment';
+    startCamera(next);
+  };
+
+  const capturePhoto = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.videoWidth === 0) {
+      setCameraError('Camera is not ready yet. Please wait a moment and try again.');
+      return;
+    }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      setCameraError('Could not process the photo on this device. Please use "Upload Image" instead.');
+      return;
+    }
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob(blob => {
+      if (!blob) {
+        setCameraError('Failed to capture the photo. Please try again.');
+        return;
+      }
+      const file = new File([blob], `business-card-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      stopCamera();
+      loadFile(file);
+    }, 'image/jpeg', 0.92);
+  };
+
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach(track => track.stop());
+    };
+  }, []);
+
+  const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // matches backend Multer limit
+
+  const loadFile = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setError('Please provide an image file (JPG, PNG, WEBP, or HEIC).');
+      return;
+    }
+    if (file.size === 0) {
+      setError('That image appears to be empty or corrupted. Please try another photo.');
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setError('That image is too large. Please use a photo under 10MB.');
+      return;
+    }
+
+    setError('');
     const reader = new FileReader();
+    reader.onerror = () => setError('Could not read that image. Please try again.');
     reader.onload = (ev) => {
       setImageData(ev.target?.result as string);
       processScan(file);
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    loadFile(file);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    loadFile(file);
   };
 
   const processScan = async (file: File) => {
@@ -30,15 +142,16 @@ export default function ScanPage() {
 
     try {
       const result = await api.scan.image(file);
-      if (result?.error) {
-        setError(`Server error: ${result.detail || result.error}`);
+      if (result?.error || result?.statusCode >= 400) {
+        setError(result.detail || result.message || result.error || 'Could not read this business card.');
         return;
       }
       setScanResult(result);
     } catch (err: any) {
       setError(`OCR failed: ${err.message || 'Unknown error'}`);
+    } finally {
+      setScanning(false);
     }
-    setScanning(false);
   };
 
   const pasteFromClipboard = async () => {
@@ -52,12 +165,7 @@ export default function ScanPage() {
               type,
               lastModified: Date.now(),
             });
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-              setImageData(ev.target?.result as string);
-              processScan(file);
-            };
-            reader.readAsDataURL(blob);
+            loadFile(file);
             return;
           }
         }
@@ -70,12 +178,14 @@ export default function ScanPage() {
 
   const goToEditForm = () => {
     if (!scanResult) return;
-    const scanResultPayload = {
+    const scanResultState = {
       ...scanResult,
       emails: scanResult.emails || [],
       phones: scanResult.phones || [],
+      businessRelationship: scanResult.businessRelationship || 'Other',
     };
-    navigate('/contacts/new', { state: { scanResult: scanResultPayload } });
+    // ContactForm reads location.state.scanResult, so it must be nested here.
+    navigate('/contacts/new', { state: { scanResult: scanResultState } });
   };
 
   const handlePaste = async (e: ClipboardEvent) => {
@@ -89,12 +199,7 @@ export default function ScanPage() {
             type: blob.type,
             lastModified: blob.lastModified,
           });
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            setImageData(ev.target?.result as string);
-            processScan(file);
-          };
-          reader.readAsDataURL(blob);
+          loadFile(file);
         }
       }
     } catch {
@@ -130,12 +235,12 @@ export default function ScanPage() {
           <div className="card" style={{ textAlign: 'center' }}>
             <h3 className="mb-1">Scan a Business Card</h3>
             <p className="text-sm text-gray mb-2">
-              Upload or paste a screenshot of a business card
+              Take a photo, upload an image, or paste a screenshot of a business card
             </p>
 
             <div className="scanner-preview">
-              {imageData ? (
-                <img src={imageData} alt="Captured" style={{ maxWidth: '100%' }} />
+              {cameraOpen ? (
+                <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%' }} />
               ) : (
                 <div className="text-gray">
                   <div className="text-4xl mb-1">📷</div>
@@ -143,27 +248,74 @@ export default function ScanPage() {
                 </div>
               )}
             </div>
+            <canvas ref={canvasRef} hidden />
 
-            <div className="flex gap-1" style={{ justifyContent: 'center' }}>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                Upload Image
-              </button>
-              <button
-                ref={pasteButtonRef}
-                type="button"
-                className="btn"
-                onClick={pasteFromClipboard}
-              >
-                Paste Image
-              </button>
-              <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleFileUpload} />
-            </div>
+            {cameraError && (
+              <p className="text-sm mb-1" style={{ color: 'var(--danger)' }}>{cameraError}</p>
+            )}
+
+            {cameraOpen ? (
+              <div className="flex gap-1" style={{ justifyContent: 'center' }}>
+                <button type="button" className="btn btn-primary" onClick={capturePhoto}>
+                  📸 Capture
+                </button>
+                <button type="button" className="btn" onClick={switchCamera}>
+                  🔄 Switch Camera
+                </button>
+                <button type="button" className="btn" onClick={stopCamera}>
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-1" style={{ justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => startCamera()}
+                >
+                  📸 Take Photo
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Upload Image
+                </button>
+                <button
+                  ref={pasteButtonRef}
+                  type="button"
+                  className="btn"
+                  onClick={pasteFromClipboard}
+                >
+                  Paste Image
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleFileUpload} />
+                {/* Fallback for browsers without getUserMedia support: opens the
+                    device's native camera app directly. */}
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  hidden
+                  onChange={handleCameraCapture}
+                />
+              </div>
+            )}
 
             {error && <p className="text-sm mt-1" style={{ color: 'var(--danger)' }}>{error}</p>}
+          </div>
+        ) : scanning || !scanResult ? (
+          <div className="card" style={{ textAlign: 'center' }}>
+            <img src={imageData} alt="Captured" style={{ maxWidth: '100%', borderRadius: 'var(--radius)', marginBottom: '1rem' }} />
+            <p className="text-sm text-gray">Reading business card…</p>
+            {error && (
+              <>
+                <p className="text-sm mt-1" style={{ color: 'var(--danger)' }}>{error}</p>
+                <button className="btn mt-1" onClick={() => setImageData(null)}>Try Again</button>
+              </>
+            )}
           </div>
         ) : (
           scanResult && (

@@ -32,3 +32,11 @@ export class MergeContactsDto {
   targetId!: string;
 }
 
+export class ResolveDuplicateDto {
+  @IsString()
+  action!: 'use_existing' | 'merge' | 'create_new';
+
+  @IsOptional()
+  @IsString()
+  existingContactId?: string;
+}

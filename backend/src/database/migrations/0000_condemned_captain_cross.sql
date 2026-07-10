@@ -45,8 +45,8 @@ CREATE TABLE IF NOT EXISTS "relationships" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "email_idx" ON "contact_emails" ("email");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "phone_idx" ON "contact_phones" ("phone");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "email_idx" ON "contact_emails" ("contact_id","email");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "phone_idx" ON "contact_phones" ("contact_id","phone");--> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "contact_emails" ADD CONSTRAINT "contact_emails_contact_id_contacts_id_fk" FOREIGN KEY ("contact_id") REFERENCES "contacts"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION

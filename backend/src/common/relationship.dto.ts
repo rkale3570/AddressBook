@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsArray } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsEnum } from 'class-validator';
+import { RelationshipType } from './enum/relationship-type.enum'; // adjust the path
 
 export class CreateRelationshipDto {
   @IsString()
@@ -7,21 +8,22 @@ export class CreateRelationshipDto {
   @IsString()
   contactId2!: string;
 
-  @IsString()
-  relationshipType!: string;
+  @IsEnum(RelationshipType)
+  relationshipType!: RelationshipType;
 }
 
 export class CreateGroupDto {
   @IsString()
   name!: string;
 
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  contactIds!: string[];
+  contactIds?: string[];
 }
 
 export class AddContactsToGroupDto {
   @IsArray()
   @IsString({ each: true })
-  contactIds!: string;
+  contactIds!: string[];
 }

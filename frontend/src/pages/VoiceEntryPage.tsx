@@ -78,17 +78,18 @@ export default function VoiceEntryPage() {
     setProcessing(false);
   };
 
-  const saveAsContact = () => {
+  const saveAsContact = async () => {
     if (!form?.fullName) return alert('Full name is required');
-    navigate('/contacts/new', {
-      state: {
-        scanResult: {
-          ...form,
-          emails: emails.filter(e => e.email),
-          phones: phones.filter(p => p.phone),
-        },
-      },
-    });
+    try {
+      await api.contacts.create({
+        ...form,
+        emails: emails.filter(e => e.email),
+        phones: phones.filter(p => p.phone),
+      });
+      navigate('/contacts');
+    } catch (err: any) {
+      alert(err.message);
+    }
   };
 
   const reset = () => {
@@ -122,15 +123,16 @@ export default function VoiceEntryPage() {
         >
           {listening ? '⏹' : '🎤'}
         </button>
-        <div className="mt-1">
+        <p className="text-sm mt-1">
           <button
+            type="button"
             className="btn btn-primary"
             onClick={listening ? stopListening : startListening}
             disabled={processing}
           >
-            {listening ? 'Stop' : 'Start Speaking'}
+            {listening ? 'Stop Recording' : 'Start Speaking'}
           </button>
-        </div>
+        </p>
         {listening && <p className="text-sm" style={{ color: 'var(--danger)' }}>Recording... click stop when done</p>}
         {processing && <p className="text-sm" style={{ color: 'var(--primary)' }}>Processing audio locally...</p>}
 

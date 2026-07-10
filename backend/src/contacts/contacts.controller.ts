@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
 import { ContactsService } from './contacts.service';
 import { CreateContactDto, UpdateContactDto } from '../common/create-contact.dto';
+import { MergeContactsDto } from '../common/duplicate.dto';
 
 @Controller('contacts')
 export class ContactsController {
@@ -12,13 +13,8 @@ export class ContactsController {
   }
 
   @Post('merge')
-  merge(@Body() body: { sourceId: string; targetId: string }) {
-    return this.contactsService.merge(body.sourceId, body.targetId);
-  }
-
-  @Post(':id/merge-into')
-  mergeInto(@Param('id') id: string, @Body() dto: CreateContactDto) {
-    return this.contactsService.mergeInto(id, dto);
+  merge(@Body() dto: MergeContactsDto) {
+    return this.contactsService.merge(dto.sourceId, dto.targetId);
   }
 
   @Get()

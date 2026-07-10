@@ -3,7 +3,7 @@ import { DuplicateResult } from '../types';
 interface Props {
   duplicates: DuplicateResult[];
   onUseExisting: (id: string) => void;
-  onMerge: (existingId: string) => void;
+  onMerge: (existingContactId: string) => void;
   onCreateNew: () => void;
   onClose: () => void;
 }
@@ -20,11 +20,23 @@ export default function DuplicateDialog({ duplicates, onUseExisting, onMerge, on
           <div key={i} className="duplicate-item">
             <div>
               <strong>{d.contact.fullName}</strong>
+              {(d.contact.company || d.contact.jobTitle) && (
+                <p className="text-sm text-gray">
+                  {[d.contact.jobTitle, d.contact.company].filter(Boolean).join(' at ')}
+                </p>
+              )}
               <p className="text-sm text-gray">{d.matchReason}</p>
               {(d.contact.emails?.length ?? 0) > 0 && (
                 <div className="mt-1">
                   {d.contact.emails?.map((e, j) => (
-                    <span key={j} className="tag">{e.email}</span>
+                    <span key={`e-${j}`} className="tag">{e.email}</span>
+                  ))}
+                </div>
+              )}
+              {(d.contact.phones?.length ?? 0) > 0 && (
+                <div className="mt-1">
+                  {d.contact.phones?.map((p, j) => (
+                    <span key={`p-${j}`} className="tag">{p.phone}</span>
                   ))}
                 </div>
               )}

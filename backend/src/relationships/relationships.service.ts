@@ -1,18 +1,17 @@
-import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import { DRIZZLE, DrizzleDb } from '../database/database.module';
 import * as schema from '../database/schema';
 import { eq, and, or } from 'drizzle-orm';
 import { CreateRelationshipDto, CreateGroupDto } from '../common/relationship.dto';
 import { v4 as uuid } from 'uuid';
+import { RELATIONSHIP_MAP } from '../common/constants/relationship-map';
+import { RelationshipType } from '../common/enum/relationship-type.enum';
 
 @Injectable()
 export class RelationshipsService {
   constructor(@Inject(DRIZZLE) private db: DrizzleDb) {}
 
   async createRelationship(dto: CreateRelationshipDto) {
-    if (dto.contactId1 === dto.contactId2) {
-      throw new BadRequestException('Cannot create a relationship between a contact and itself');
-    }
     const existing = await this.db.select().from(schema.relationships)
       .where(
         or(
@@ -25,17 +24,33 @@ export class RelationshipsService {
       return existing[0];
     }
 
-    const rel = { id: uuid(), ...dto };
-    await this.db.insert(schema.relationships).values(rel as any);
-    return rel;
+  const reverseRelationship =
+  RELATIONSHIP_MAP[dto.relationshipType as RelationshipType];
+
+const relationships = [
+  {
+    id: uuid(),
+    contactId1: dto.contactId1,
+    contactId2: dto.contactId2,
+    relationshipType: dto.relationshipType,
+  },
+  {
+    id: uuid(),
+    contactId1: dto.contactId2,
+    contactId2: dto.contactId1,
+    relationshipType: reverseRelationship,
+  },
+];
+
+await this.db.insert(schema.relationships).values(relationships);
+
+return relationships[0];
   }
 
   async getRelationships(contactId: string) {
     const rels = await this.db.select()
       .from(schema.relationships)
-      .where(
-        or(eq(schema.relationships.contactId1, contactId), eq(schema.relationships.contactId2, contactId))
-      );
+      .where(eq(schema.relationships.contactId1, contactId));
 
     const enriched = await Promise.all(
       rels.map(async (rel: typeof schema.relationships.$inferSelect) => {
@@ -94,27 +109,11 @@ export class RelationshipsService {
     const group = await this.db.select().from(schema.relationshipGroups).where(eq(schema.relationshipGroups.id, groupId));
     if (!group.length) throw new NotFoundException('Group not found');
 
-    const existing = await this.db.select().from(schema.contactGroups).where(eq(schema.contactGroups.groupId, groupId));
-    const existingIds = new Set(existing.map(cg => cg.contactId));
-    const toAdd = contactIds.filter(id => !existingIds.has(id));
-
-    if (toAdd.length) {
-      await this.db.insert(schema.contactGroups).values(
-        toAdd.map(contactId => ({ id: uuid(), contactId, groupId }))
-      );
-    }
+    await this.db.insert(schema.contactGroups).values(
+      contactIds.map(contactId => ({ id: uuid(), contactId, groupId }))
+    );
 
     return this.getGroups();
-  }
-
-  async removeContactFromGroup(groupId: string, contactId: string) {
-    await this.db.delete(schema.contactGroups).where(
-      and(
-        eq(schema.contactGroups.groupId, groupId),
-        eq(schema.contactGroups.contactId, contactId),
-      )
-    );
-    return { removed: true };
   }
 
   async deleteGroup(id: string) {

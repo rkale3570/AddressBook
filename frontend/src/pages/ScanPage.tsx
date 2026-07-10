@@ -9,8 +9,11 @@ export default function ScanPage() {
   const [scanResult, setScanResult] = useState<any>(null);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState('');
+  const [cameraOn, setCameraOn] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const pasteButtonRef = useRef<HTMLButtonElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -39,6 +42,64 @@ export default function ScanPage() {
       setError(`OCR failed: ${err.message || 'Unknown error'}`);
     }
     setScanning(false);
+  };
+
+  const startCamera = async () => {
+    setError('');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+        audio: false,
+      });
+      streamRef.current = stream;
+      setCameraOn(true);
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(() => {});
+        }
+      }, 0);
+    } catch (err: any) {
+      setError(
+        err?.name === 'NotAllowedError'
+          ? 'Camera permission denied. Enable it in browser settings or use Upload/Take Photo.'
+          : 'Camera not available. Try Upload or the Take Photo file option.',
+      );
+      cameraInputRef.current?.click();
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+    setCameraOn(false);
+  };
+
+  const capturePhoto = () => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) {
+      setError('Camera not ready yet, please wait a moment.');
+      return;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(blob => {
+      if (!blob) return;
+      const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' });
+      const reader = new FileReader();
+      reader.onload = ev => {
+        setImageData(ev.target?.result as string);
+        stopCamera();
+        processScan(file);
+      };
+      reader.readAsDataURL(blob);
+    }, 'image/jpeg', 0.9);
   };
 
   const pasteFromClipboard = async () => {
@@ -110,8 +171,19 @@ export default function ScanPage() {
 
   useEffect(() => {
     window.addEventListener('paste', handlePasteWindow);
-    return () => window.removeEventListener('paste', handlePasteWindow);
+    return () => {
+      window.removeEventListener('paste', handlePasteWindow);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+      }
+    };
   }, []);
+
+  const resetScan = () => {
+    setImageData(null);
+    setScanResult(null);
+    setError('');
+  };
 
   return (
     <div>
@@ -119,32 +191,53 @@ export default function ScanPage() {
         <h2>Scan Business Card</h2>
         {scanResult && (
           <div className="flex gap-1">
-            <button className="btn" onClick={() => setImageData(null)}>Scan Another</button>
+            <button className="btn" onClick={resetScan}>Scan Another</button>
             <button className="btn btn-primary" onClick={goToEditForm}>Fill Contact Form</button>
           </div>
         )}
       </div>
 
       <div className="scanner-container">
-        {!imageData ? (
+        {cameraOn ? (
+          <div className="card" style={{ textAlign: 'center' }}>
+            <h3 className="mb-1">Camera</h3>
+            <p className="text-sm text-gray mb-1">Point at the business card and click Capture.</p>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              style={{
+                width: '100%',
+                maxWidth: '600px',
+                borderRadius: 'var(--radius)',
+                background: '#000',
+              }}
+            />
+            <div className="flex gap-1 mt-1" style={{ justifyContent: 'center' }}>
+              <button className="btn btn-primary" onClick={capturePhoto}>Capture</button>
+              <button className="btn" onClick={stopCamera}>Cancel</button>
+            </div>
+            {error && <p className="text-sm mt-1" style={{ color: 'var(--danger)' }}>{error}</p>}
+          </div>
+        ) : !imageData ? (
           <div className="card" style={{ textAlign: 'center' }}>
             <h3 className="mb-1">Scan a Business Card</h3>
             <p className="text-sm text-gray mb-2">
-              Upload or paste a screenshot of a business card
+              Use your camera, upload a file, or paste an image (Ctrl+V).
             </p>
 
             <div className="scanner-preview">
-              {imageData ? (
-                <img src={imageData} alt="Captured" style={{ maxWidth: '100%' }} />
-              ) : (
-                <div className="text-gray">
-                  <div className="text-4xl mb-1">📷</div>
-                  <p>or paste an image using Ctrl+V</p>
-                </div>
-              )}
+              <div className="text-gray">
+                <div className="text-4xl mb-1">📷</div>
+                <p>Take a photo, upload, or paste</p>
+              </div>
             </div>
 
-            <div className="flex gap-1" style={{ justifyContent: 'center' }}>
+            <div className="flex gap-1" style={{ justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-primary" onClick={startCamera}>
+                Take Photo
+              </button>
               <button
                 type="button"
                 className="btn"
@@ -153,7 +246,6 @@ export default function ScanPage() {
                 Upload Image
               </button>
               <button
-                ref={pasteButtonRef}
                 type="button"
                 className="btn"
                 onClick={pasteFromClipboard}
@@ -161,9 +253,15 @@ export default function ScanPage() {
                 Paste Image
               </button>
               <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleFileUpload} />
+              <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={handleFileUpload} />
             </div>
 
             {error && <p className="text-sm mt-1" style={{ color: 'var(--danger)' }}>{error}</p>}
+          </div>
+        ) : scanning ? (
+          <div className="card" style={{ textAlign: 'center' }}>
+            <p className="text-sm">Running OCR on the image...</p>
+            <img src={imageData} alt="Captured" style={{ maxWidth: '100%', marginTop: '1rem', borderRadius: 'var(--radius)' }} />
           </div>
         ) : (
           scanResult && (
@@ -326,7 +424,7 @@ export default function ScanPage() {
                 </div>
 
                 <div className="flex gap-1 mt-2">
-                  <button className="btn" onClick={() => setImageData(null)}>Scan Another</button>
+                  <button className="btn" onClick={resetScan}>Scan Another</button>
                   <button className="btn btn-primary" onClick={goToEditForm}>Continue to Contact Form</button>
                 </div>
               </div>
